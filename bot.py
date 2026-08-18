@@ -1,38 +1,35 @@
 import os
 import telebot
-import json
 
 TOKEN = os.environ["BOT_TOKEN"]
+ADMIN_ID = int(os.environ["ADMIN_ID"])
 
 bot = telebot.TeleBot(TOKEN)
 
-ADMIN_ID = int(os.environ["ADMIN_ID"])
 
-WHITELIST_FILE = "whitelist.json"
+def get_nodes():
 
-
-def load_whitelist():
     try:
-        with open(WHITELIST_FILE, "r") as f:
-            return json.load(f)
+        with open(
+            "nodes.txt",
+            "r",
+            encoding="utf-8"
+        ) as f:
+            nodes = f.read()
+
+        return nodes[:4000]
+
     except:
-        return [ADMIN_ID]
-
-
-def save_whitelist(data):
-    with open(WHITELIST_FILE, "w") as f:
-        json.dump(data, f)
+        return "❌ 节点文件不存在，请等待更新"
 
 
 @bot.message_handler(commands=["start"])
 def start(message):
 
-    users = load_whitelist()
-
-    if message.from_user.id not in users:
+    if message.from_user.id != ADMIN_ID:
         bot.reply_to(
             message,
-            "❌ 无权限使用"
+            "❌ 无权限"
         )
         return
 
@@ -45,66 +42,34 @@ def start(message):
 功能：
 
 /start
+查看功能
+
+/nodes
 获取50个优选节点
 
-/whitelist ID
-添加授权用户
 
-/list
-查看授权列表
-
-
-当前状态：
-
-✅ GitHub自动抓取
+自动更新：
+✅ 每8小时抓取
+✅ GitHub节点源
 ✅ 自动去重
-✅ 自动筛选
-✅ 每天更新3次
 
-节点将在这里发送。
+管理员模式开启
 """
     )
 
 
-@bot.message_handler(commands=["whitelist"])
-def whitelist(message):
+@bot.message_handler(commands=["nodes"])
+def nodes(message):
 
     if message.from_user.id != ADMIN_ID:
         return
 
 
-    try:
-        uid = int(message.text.split()[1])
-
-        users = load_whitelist()
-
-        if uid not in users:
-            users.append(uid)
-            save_whitelist(users)
-
-        bot.reply_to(
-            message,
-            "✅ 已添加"
-        )
-
-    except:
-        bot.reply_to(
-            message,
-            "格式：/whitelist 用户ID"
-        )
-
-
-@bot.message_handler(commands=["list"])
-def list_users(message):
-
-    if message.from_user.id != ADMIN_ID:
-        return
-
-    users = load_whitelist()
+    data = get_nodes()
 
     bot.reply_to(
         message,
-        str(users)
+        "✅ 最新50个节点：\n\n" + data
     )
 
 
