@@ -3,41 +3,62 @@ import re
 import random
 import base64
 import socket
-from urllib.parse import urlparse
+import time
 
 
 SOURCES = [
+
 "https://raw.githubusercontent.com/zhuhaiuk/free-nodes/main/nodes.txt",
+
 "https://raw.githubusercontent.com/mahdibland/V2RayAggregator/master/sub/sub_merge.txt",
+
 "https://raw.githubusercontent.com/chengaopan/AutoMergePublicNodes/master/list.txt",
+
 "https://raw.githubusercontent.com/free-nodes/v2rayfree/main/sub"
+
 ]
+
 
 
 def download():
 
-    result = ""
+    result=""
 
     for url in SOURCES:
 
         try:
-            r = requests.get(url, timeout=15)
 
-            if r.status_code == 200:
-                result += "\n" + r.text
+            r=requests.get(
+                url,
+                timeout=15
+            )
 
-        except:
+            if r.status_code==200:
+
+                result += "\n"+r.text
+
+
+        except Exception:
+
             pass
+
 
     return result
 
 
 
+
+
 def extract_nodes(text):
 
-    pattern = r"(?:vmess|vless|trojan|ss|ssr)://[^\s\"<>]+"
+    pattern=r"(?:vmess|vless|trojan|ss|ssr)://[^\s\"<>]+"
 
-    return re.findall(pattern, text)
+    return re.findall(
+        pattern,
+        text
+    )
+
+
 
 
 
@@ -45,16 +66,22 @@ def get_host_port(node):
 
     try:
 
+
         if node.startswith("trojan://"):
 
-            s = node.replace("trojan://","")
-            hostport = s.split("@")[-1].split("?")[0]
+            s=node.replace(
+                "trojan://",
+                ""
+            )
+
+            hp=s.split("@")[-1].split("?")[0]
+
 
 
         elif node.startswith("ss://"):
 
-            s = node.split("@")[-1]
-            hostport = s.split("#")[0]
+            hp=node.split("@")[-1].split("#")[0]
+
 
 
         else:
@@ -62,10 +89,16 @@ def get_host_port(node):
             return None,None
 
 
-        host = hostport.split(":")[0]
-        port = int(hostport.split(":")[1])
+
+        host=hp.split(":")[0]
+
+        port=int(
+            hp.split(":")[1]
+        )
+
 
         return host,port
+
 
 
     except:
@@ -74,51 +107,85 @@ def get_host_port(node):
 
 
 
-def check_node(node):
 
-    host,port = get_host_port(node)
+
+
+def tcp_test(node):
+
+
+    host,port=get_host_port(node)
+
 
     if not host:
+
         return True
+
 
 
     try:
 
-        sock = socket.create_connection(
+
+        s=socket.create_connection(
             (host,port),
-            timeout=3
+            timeout=5
         )
 
-        sock.close()
+        s.close()
 
         return True
 
 
+
     except:
+
 
         return False
 
 
 
+
+
 def main():
 
-    data = download()
 
-    nodes = extract_nodes(data)
+    print("下載節點...")
 
-    nodes = list(set(nodes))
+
+    data=download()
+
+
+    nodes=extract_nodes(data)
+
+
+    nodes=list(set(nodes))
+
 
     random.shuffle(nodes)
+
 
 
     alive=[]
 
 
-    for n in nodes[:200]:
 
-        if check_node(n):
+    print(
+        "總節點:",
+        len(nodes)
+    )
+
+
+
+    for n in nodes:
+
+
+        if tcp_test(n):
 
             alive.append(n)
+
+            print(
+                "OK",
+                len(alive)
+            )
 
 
         if len(alive)>=50:
@@ -127,7 +194,10 @@ def main():
 
 
 
-    print("有效節點:",len(alive))
+    print(
+        "保存:",
+        len(alive)
+    )
 
 
 
@@ -137,18 +207,22 @@ def main():
         encoding="utf-8"
     ) as f:
 
+
         for n in alive:
 
-            f.write(n+"\n")
+            f.write(
+                n+"\n"
+            )
 
 
 
-    sub = "\n".join(alive)
+    text="\n".join(alive)
 
 
-    sub64 = base64.b64encode(
-        sub.encode("utf-8")
-    ).decode("utf-8")
+
+    encoded=base64.b64encode(
+        text.encode()
+    ).decode()
 
 
 
@@ -158,7 +232,8 @@ def main():
         encoding="utf-8"
     ) as f:
 
-        f.write(sub64)
+
+        f.write(encoded)
 
 
 
