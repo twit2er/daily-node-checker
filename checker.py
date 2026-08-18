@@ -1,90 +1,214 @@
 import requests
 import re
 import random
-import subprocess
 import json
+import subprocess
 import time
-import base64
 import os
+import base64
 
 
-SOURCES=[
-"https://raw.githubusercontent.com/zhuhaiuk/free-nodes/main/nodes.txt",
-"https://raw.githubusercontent.com/mahdibland/V2RayAggregator/master/sub/sub_merge.txt",
-"https://raw.githubusercontent.com/chengaopan/AutoMergePublicNodes/master/list.txt",
+SOURCES = [
+    "https://raw.githubusercontent.com/zhuhaiuk/free-nodes/main/nodes.txt",
+    "https://raw.githubusercontent.com/mahdibland/V2RayAggregator/master/sub/sub_merge.txt",
+    "https://raw.githubusercontent.com/chengaopan/AutoMergePublicNodes/master/list.txt",
 ]
 
 
 def download():
 
-    data=""
+    text = ""
 
-    for u in SOURCES:
-
+    for url in SOURCES:
         try:
-
-            r=requests.get(
-                u,
+            r = requests.get(
+                url,
                 timeout=15
             )
 
-            if r.status_code==200:
-                data+=r.text
+            if r.status_code == 200:
+                text += "\n" + r.text
 
         except:
             pass
 
-    return data
+    return text
 
 
 
 def extract(text):
 
-    return list(set(
-        re.findall(
-            r"(?:ss|trojan)://[^\s]+",
-            text
-        )
-    ))
+    nodes = re.findall(
+        r"(?:ss|trojan)://[^\s\"<>]+",
+        text
+    )
+
+    return list(set(nodes))
 
 
 
-def test(node):
+def build_config(node):
 
-    # 臨時跳過複雜節點
-    # 只保留格式測試
+    outbound = None
 
-    if len(node)<30:
+
+    if node.startswith("ss://"):
+
+        # sing-box 支持直接 URL
+
+        outbound = {
+            "type": "shadowsocks",
+            "tag": "proxy",
+            "server": node
+        }
+
+
+    elif node.startswith("trojan://"):
+
+        outbound = {
+            "type": "trojan",
+            "tag": "proxy",
+            "server": node
+        }
+
+
+    if not outbound:
+        return None
+
+
+    config = {
+
+        "log": {
+            "level":"error"
+        },
+
+        "inbounds":[
+            {
+                "type":"mixed",
+                "tag":"mixed-in",
+                "listen":"127.0.0.1",
+                "listen_port":1080
+            }
+        ],
+
+        "outbounds":[
+            outbound,
+            {
+                "type":"direct",
+                "tag":"direct"
+            }
+        ]
+    }
+
+
+    return config
+
+
+
+def test_node(node):
+
+    config = build_config(node)
+
+    if not config:
         return False
 
-    return True
+
+    with open(
+        "temp.json",
+        "w",
+        encoding="utf8"
+    ) as f:
+
+        json.dump(
+            config,
+            f
+        )
+
+
+    try:
+
+        p=subprocess.Popen(
+            [
+                "sing-box",
+                "run",
+                "-c",
+                "temp.json"
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+
+
+        time.sleep(3)
+
+
+        r=requests.get(
+            "https://www.gstatic.com/generate_204",
+            proxies={
+                "http":"http://127.0.0.1:1080",
+                "https":"http://127.0.0.1:1080"
+            },
+            timeout=8
+        )
+
+
+        p.kill()
+
+
+        return r.status_code==204
+
+
+    except Exception:
+
+        try:
+            p.kill()
+        except:
+            pass
+
+        return False
 
 
 
 def main():
 
-    print("download")
+    print("抓取")
+
 
     data=download()
 
+
     nodes=extract(data)
 
+
     random.shuffle(nodes)
+
+
+    print(
+        "候選:",
+        len(nodes)
+    )
 
 
     alive=[]
 
 
-    for n in nodes:
+    for node in nodes[:200]:
 
-        if test(n):
+        print(
+            "測試",
+            node[:40]
+        )
 
-            alive.append(n)
+
+        if test_node(node):
+
+            alive.append(node)
 
             print(
-                "OK",
+                "成功:",
                 len(alive)
             )
+
 
         if len(alive)>=50:
             break
@@ -98,11 +222,9 @@ def main():
     ) as f:
 
         for n in alive:
-
             f.write(
                 n+"\n"
             )
-
 
 
     sub=base64.b64encode(
@@ -121,10 +243,12 @@ def main():
 
 
     print(
-        "完成",
+        "完成:",
         len(alive)
     )
 
 
+
 if __name__=="__main__":
+
     main()
