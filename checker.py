@@ -4,150 +4,94 @@ import random
 import json
 import subprocess
 import time
-import os
 import base64
-import uuid
+import os
 
 
 SOURCES = [
     "https://raw.githubusercontent.com/zhuhaiuk/free-nodes/main/nodes.txt",
     "https://raw.githubusercontent.com/mahdibland/V2RayAggregator/master/sub/sub_merge.txt",
     "https://raw.githubusercontent.com/chengaopan/AutoMergePublicNodes/master/list.txt",
-    "https://raw.githubusercontent.com/free-nodes/v2rayfree/main/sub"
 ]
 
 
 def download():
 
-    data = ""
+    text = ""
 
     for url in SOURCES:
-
         try:
             r = requests.get(
                 url,
-                timeout=20
+                timeout=15
             )
 
             if r.status_code == 200:
-                data += "\n" + r.text
+                text += "\n" + r.text
 
-        except:
+        except Exception:
             pass
 
-    return data
-
-
-
-def decode_base64(text):
-
-    try:
-
-        pad = len(text) % 4
-
-        if pad:
-            text += "=" * (4-pad)
-
-        return base64.b64decode(
-            text
-        ).decode(
-            errors="ignore"
-        )
-
-    except:
-
-        return ""
+    return text
 
 
 
 def extract(text):
 
-    result=[]
-
-
-    # 原始
-
-    result += re.findall(
-        r"(?:ss|ssr|trojan|vmess|vless)://[^\s\"<>]+",
+    nodes = re.findall(
+        r"(?:ss|trojan)://[^\s\"<>]+",
         text
     )
 
-
-    # base64
-
-    decoded = decode_base64(text)
-
-    result += re.findall(
-        r"(?:ss|ssr|trojan|vmess|vless)://[^\s\"<>]+",
-        decoded
-    )
-
-
-    return list(set(result))
+    return list(set(nodes))
 
 
 
 def make_config(node):
 
-
-    outbound=None
-
-
-    # 先處理 trojan
-
     if node.startswith("trojan://"):
-
-        outbound={
-            "type":"trojan",
-            "tag":"proxy",
-            "server":node.split("@")[-1].split(":")[0],
-            "server_port":443,
-            "password":node.split("://")[1].split("@")[0],
-            "tls":{
-                "enabled":True
-            }
-        }
-
-
-
-    # ss
-
-    elif node.startswith("ss://"):
 
         try:
 
-            body=node.replace(
-                "ss://",
+            info=node.replace(
+                "trojan://",
                 ""
-            ).split("#")[0]
+            )
+
+            password,server=info.split("@")
+
+            host=server.split(":")[0]
 
 
-            hostpart=body.split("@")
+            return {
 
-            if len(hostpart)==2:
+                "log":{
+                    "level":"error"
+                },
 
-                user=hostpart[0]
-                server=hostpart[1]
+                "inbounds":[
+                    {
+                        "type":"mixed",
+                        "listen":"127.0.0.1",
+                        "listen_port":1080
+                    }
+                ],
 
-                method_password=base64.b64decode(
-                    user+"=="
-                ).decode()
+                "outbounds":[
 
+                    {
+                        "type":"trojan",
+                        "server":host,
+                        "server_port":443,
+                        "password":password,
+                        "tls":{
+                            "enabled":True
+                        }
+                    }
 
-                method,password=method_password.split(":")
+                ]
 
-
-                host,port=server.split(":")
-
-
-                outbound={
-                    "type":"shadowsocks",
-                    "tag":"proxy",
-                    "server":host,
-                    "server_port":int(port),
-                    "method":method,
-                    "password":password
-                }
+            }
 
 
         except:
@@ -155,70 +99,21 @@ def make_config(node):
             return None
 
 
-
-    else:
-
-        return None
+    return None
 
 
 
-    if not outbound:
-
-        return None
-
-
-
-    return {
-
-        "log":{
-            "level":"error"
-        },
-
-
-        "inbounds":[
-
-            {
-                "type":"mixed",
-                "tag":"local",
-                "listen":"127.0.0.1",
-                "listen_port":1080
-            }
-
-        ],
-
-
-        "outbounds":[
-
-            outbound,
-
-            {
-                "type":"direct",
-                "tag":"direct"
-            }
-
-        ]
-
-    }
-
-
-
-def test_node(node):
-
+def test(node):
 
     config=make_config(node)
 
 
     if not config:
-
         return False
 
 
-
-    filename="test.json"
-
-
     with open(
-        filename,
+        "test.json",
         "w",
         encoding="utf8"
     ) as f:
@@ -229,9 +124,9 @@ def test_node(node):
         )
 
 
+    p=None
 
     try:
-
 
         p=subprocess.Popen(
 
@@ -239,7 +134,7 @@ def test_node(node):
                 "sing-box",
                 "run",
                 "-c",
-                filename
+                "test.json"
             ],
 
             stdout=subprocess.DEVNULL,
@@ -249,8 +144,7 @@ def test_node(node):
         )
 
 
-        time.sleep(4)
-
+        time.sleep(2)
 
 
         r=requests.get(
@@ -265,41 +159,30 @@ def test_node(node):
 
             },
 
-            timeout=10
+            timeout=5
 
         )
 
 
-
-        p.kill()
-
-
-
-        if r.status_code==204:
-
-            return True
-
+        return r.status_code==204
 
 
     except:
 
-        try:
+        return False
+
+
+    finally:
+
+        if p:
+
             p.kill()
-        except:
-            pass
-
-
-
-    return False
-
 
 
 
 def main():
 
-
-    print("開始下載")
-
+    print("下載節點")
 
     data=download()
 
@@ -311,7 +194,7 @@ def main():
 
 
     print(
-        "候選:",
+        "候選數:",
         len(nodes)
     )
 
@@ -319,9 +202,9 @@ def main():
     alive=[]
 
 
+    # 只測20個，確認流程
 
-    for node in nodes[:300]:
-
+    for node in nodes[:20]:
 
         print(
             "測試:",
@@ -329,22 +212,16 @@ def main():
         )
 
 
+        if test(node):
 
-        if test_node(node):
-
-
-            print(
-                "成功"
-            )
-
+            print("OK")
 
             alive.append(node)
 
 
+        else:
 
-        if len(alive)>=50:
-
-            break
+            print("FAIL")
 
 
 
@@ -361,19 +238,13 @@ def main():
         encoding="utf8"
     ) as f:
 
-
         for n in alive:
-
-            f.write(
-                n+"\n"
-            )
+            f.write(n+"\n")
 
 
 
     sub=base64.b64encode(
-
         "\n".join(alive).encode()
-
     ).decode()
 
 
