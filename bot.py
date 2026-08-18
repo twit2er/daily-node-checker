@@ -1,41 +1,38 @@
 import os
-import requests
 import telebot
+import json
 
 TOKEN = os.environ["BOT_TOKEN"]
-ADMIN_ID = int(os.environ["ADMIN_ID"])
 
 bot = telebot.TeleBot(TOKEN)
 
+ADMIN_ID = int(os.environ["ADMIN_ID"])
 
-NODE_URL = "https://raw.githubusercontent.com/twit2er/daily-node-checker/main/nodes.txt"
+WHITELIST_FILE = "whitelist.json"
 
 
-def get_nodes():
-
+def load_whitelist():
     try:
-        r = requests.get(
-            NODE_URL,
-            timeout=20
-        )
+        with open(WHITELIST_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return [ADMIN_ID]
 
-        if r.status_code == 200:
-            return r.text
 
-        return "❌ 節點文件讀取失敗"
-
-    except Exception as e:
-        return f"❌ 錯誤: {e}"
-
+def save_whitelist(data):
+    with open(WHITELIST_FILE, "w") as f:
+        json.dump(data, f)
 
 
 @bot.message_handler(commands=["start"])
 def start(message):
 
-    if message.from_user.id != ADMIN_ID:
+    users = load_whitelist()
+
+    if message.from_user.id not in users:
         bot.reply_to(
             message,
-            "❌ 無權限使用"
+            "❌ 无权限使用"
         )
         return
 
@@ -43,56 +40,72 @@ def start(message):
     bot.reply_to(
         message,
         """
-✅ Daily Node Checker
+✅ Twit2le Node Checker
 
-命令：
-
-/nodes
-獲取最新50個優選節點
+功能：
 
 /start
-查看功能
+获取50个优选节点
 
-目前狀態：
-✅ GitHub自動更新
-✅ 節點去重
-✅ 定時更新
+/whitelist ID
+添加授权用户
 
-管理員模式開啟
+/list
+查看授权列表
+
+
+当前状态：
+
+✅ GitHub自动抓取
+✅ 自动去重
+✅ 自动筛选
+✅ 每天更新3次
+
+节点将在这里发送。
 """
     )
 
 
-
-@bot.message_handler(commands=["nodes"])
-def nodes(message):
+@bot.message_handler(commands=["whitelist"])
+def whitelist(message):
 
     if message.from_user.id != ADMIN_ID:
-        bot.reply_to(
-            message,
-            "❌ 無權限"
-        )
         return
 
 
-    bot.send_message(
-        message.chat.id,
-        "⏳ 正在獲取節點..."
+    try:
+        uid = int(message.text.split()[1])
+
+        users = load_whitelist()
+
+        if uid not in users:
+            users.append(uid)
+            save_whitelist(users)
+
+        bot.reply_to(
+            message,
+            "✅ 已添加"
+        )
+
+    except:
+        bot.reply_to(
+            message,
+            "格式：/whitelist 用户ID"
+        )
+
+
+@bot.message_handler(commands=["list"])
+def list_users(message):
+
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    users = load_whitelist()
+
+    bot.reply_to(
+        message,
+        str(users)
     )
-
-
-    data = get_nodes()
-
-
-    if len(data) > 3800:
-        data = data[:3800]
-
-
-    bot.send_message(
-        message.chat.id,
-        data
-    )
-
 
 
 bot.infinity_polling()
