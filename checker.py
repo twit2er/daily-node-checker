@@ -2,6 +2,8 @@ import requests
 import re
 import random
 import base64
+import socket
+import time
 
 
 SOURCES = [
@@ -34,13 +36,11 @@ def download():
 
 
 
-def decode_base64(text):
+def decode(text):
 
     try:
-        pad = len(text) % 4
 
-        if pad:
-            text += "=" * (4-pad)
+        text += "=" * ((4-len(text)%4)%4)
 
         return base64.b64decode(
             text
@@ -49,45 +49,91 @@ def decode_base64(text):
         )
 
     except:
+
         return ""
 
 
 
 def extract(text):
 
-    result=[]
+    nodes=[]
 
 
-    # 原始格式
-
-    result += re.findall(
+    nodes += re.findall(
         r"(?:vmess|vless|trojan|ss|ssr)://[^\s\"<>]+",
         text
     )
 
 
-    # base64訂閱
+    if len(nodes)==0:
 
-    if len(result)==0:
+        d=decode(text)
 
-        d=decode_base64(text)
-
-        result += re.findall(
+        nodes += re.findall(
             r"(?:vmess|vless|trojan|ss|ssr)://[^\s\"<>]+",
             d
         )
 
 
-    return list(set(result))
+    return list(set(nodes))
+
+
+
+def port_check(node):
+
+    try:
+
+        if node.startswith("ss://"):
+
+            host=node.split("@")[-1].split(":")[0]
+
+            port=node.split("@")[-1].split(":")[1].split("#")[0]
+
+
+        elif node.startswith("trojan://"):
+
+            temp=node.replace(
+                "trojan://",
+                ""
+            )
+
+            host=temp.split("@")[-1].split(":")[0]
+
+            port=temp.split("@")[-1].split(":")[1].split("?")[0]
+
+
+        else:
+
+            return True
+
+
+        s=socket.create_connection(
+            (
+                host,
+                int(port)
+            ),
+            timeout=3
+        )
+
+        s.close()
+
+        return True
+
+
+    except:
+
+        return False
 
 
 
 def main():
 
-    print("下載")
+    print(
+        "抓取節點"
+    )
+
 
     data=download()
-
 
     nodes=extract(data)
 
@@ -96,12 +142,38 @@ def main():
 
 
     print(
-        "找到節點:",
+        "候選:",
         len(nodes)
     )
 
 
-    # 暫時保存全部候選
+    alive=[]
+
+
+    for n in nodes[:300]:
+
+
+        if port_check(n):
+
+            alive.append(n)
+
+            print(
+                "有效:",
+                len(alive)
+            )
+
+
+        if len(alive)>=50:
+
+            break
+
+
+
+    print(
+        "保存:",
+        len(alive)
+    )
+
 
     with open(
         "nodes.txt",
@@ -109,17 +181,27 @@ def main():
         encoding="utf-8"
     ) as f:
 
-        for n in nodes[:100]:
+        for n in alive:
 
             f.write(
                 n+"\n"
             )
 
 
-    print(
-        "保存候選:",
-        min(100,len(nodes))
-    )
+
+    sub=base64.b64encode(
+        "\n".join(alive).encode()
+    ).decode()
+
+
+
+    with open(
+        "sub.txt",
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        f.write(sub)
 
 
 
