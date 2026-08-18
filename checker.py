@@ -2,10 +2,6 @@ import requests
 import re
 import random
 import base64
-import subprocess
-import json
-import os
-import time
 
 
 SOURCES = [
@@ -21,8 +17,12 @@ def download():
     text = ""
 
     for url in SOURCES:
+
         try:
-            r = requests.get(url, timeout=15)
+            r = requests.get(
+                url,
+                timeout=15
+            )
 
             if r.status_code == 200:
                 text += "\n" + r.text
@@ -34,65 +34,74 @@ def download():
 
 
 
+def decode_base64(text):
+
+    try:
+        pad = len(text) % 4
+
+        if pad:
+            text += "=" * (4-pad)
+
+        return base64.b64decode(
+            text
+        ).decode(
+            errors="ignore"
+        )
+
+    except:
+        return ""
+
+
+
 def extract(text):
 
-    return list(set(
-        re.findall(
+    result=[]
+
+
+    # 原始格式
+
+    result += re.findall(
+        r"(?:vmess|vless|trojan|ss|ssr)://[^\s\"<>]+",
+        text
+    )
+
+
+    # base64訂閱
+
+    if len(result)==0:
+
+        d=decode_base64(text)
+
+        result += re.findall(
             r"(?:vmess|vless|trojan|ss|ssr)://[^\s\"<>]+",
-            text
+            d
         )
-    ))
 
 
-
-def test_node(node):
-
-    # 目前先保留格式
-    # 真正測試需要xray/sing-box解析
-
-    if len(node) < 20:
-        return False
-
-    return True
+    return list(set(result))
 
 
 
 def main():
 
-    print("抓取節點")
+    print("下載")
 
-    data = download()
+    data=download()
 
-    nodes = extract(data)
+
+    nodes=extract(data)
+
 
     random.shuffle(nodes)
 
 
-    alive=[]
-
-
-    for n in nodes:
-
-        if test_node(n):
-
-            alive.append(n)
-
-            print(
-                "保留:",
-                len(alive)
-            )
-
-
-        if len(alive)>=50:
-            break
-
-
-
     print(
-        "生成:",
-        len(alive)
+        "找到節點:",
+        len(nodes)
     )
 
+
+    # 暫時保存全部候選
 
     with open(
         "nodes.txt",
@@ -100,26 +109,20 @@ def main():
         encoding="utf-8"
     ) as f:
 
-        for n in alive:
-            f.write(n+"\n")
+        for n in nodes[:100]:
+
+            f.write(
+                n+"\n"
+            )
 
 
-
-    sub64 = base64.b64encode(
-        "\n".join(alive).encode()
-    ).decode()
-
-
-
-    with open(
-        "sub.txt",
-        "w",
-        encoding="utf-8"
-    ) as f:
-
-        f.write(sub64)
+    print(
+        "保存候選:",
+        min(100,len(nodes))
+    )
 
 
 
 if __name__=="__main__":
+
     main()
