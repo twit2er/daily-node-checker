@@ -26,6 +26,7 @@ SOURCES = [
 ]
 
 
+
 def download():
 
     result = ""
@@ -33,31 +34,43 @@ def download():
     for url in SOURCES:
 
         try:
+
             r = requests.get(
                 url,
                 timeout=15
             )
 
             if r.status_code == 200:
+
                 result += "\n" + r.text
 
-        except:
+
+        except Exception:
+
             pass
+
 
     return result
 
 
 
+
+
 def extract(text):
 
-    pattern = r"(vmess|vless|trojan|ss|ssr|hysteria2)://[^\s\"<>]+"
+
+    pattern = r"(?:vmess|vless|trojan|ss|ssr|hysteria2)://[^\s\"<>]+"
+
 
     nodes = re.findall(
         pattern,
         text
     )
 
+
     return nodes
+
+
 
 
 
@@ -65,13 +78,19 @@ def main():
 
     data = download()
 
+
     nodes = extract(data)
+
+
 
     nodes = list(set(nodes))
 
+
     random.shuffle(nodes)
 
+
     nodes = nodes[:50]
+
 
 
     with open(
@@ -80,8 +99,11 @@ def main():
         encoding="utf-8"
     ) as f:
 
+
         for n in nodes:
+
             f.write(n+"\n")
+
 
 
     print(
@@ -90,5 +112,9 @@ def main():
     )
 
 
+
+
+
 if __name__ == "__main__":
+
     main()
