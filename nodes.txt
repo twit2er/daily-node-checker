@@ -1,1 +1,1 @@
-trojan://UX82473651@sacred-anemone.rooster465.autos:443?security=tls&sni=sacred-anemone.rooster465.autos#%F0%9F%87%AE%F0%9F%87%AAIE-34.242.77.118-0207
+trojan://UX82473651@guided-ferret.rooster465.autos:443?security=tls&sni=guided-ferret.rooster465.autos#%F0%9F%87%BA%F0%9F%87%B8US-34.220.15.24-0211
